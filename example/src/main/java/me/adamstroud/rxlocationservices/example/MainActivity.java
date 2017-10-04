@@ -14,10 +14,10 @@ import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsStates;
 import com.google.android.gms.location.LocationSettingsStatusCodes;
 
 import io.reactivex.disposables.CompositeDisposable;
-import io.reactivex.schedulers.Schedulers;
 import me.adamstroud.rxlocationservices.RxLocationServices;
 import me.adamstroud.rxlocationservices.example.databinding.ActivityMainBinding;
 import timber.log.Timber;
@@ -54,13 +54,17 @@ public class MainActivity extends AppCompatActivity {
                     .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
             compositeDisposable.add(RxLocationServices.getSettingsClient(this)
-                    .flatMap(settingsClient -> RxLocationServices.checkLocationSettings(settingsClient, new LocationSettingsRequest.Builder().build()))
-                    .flatMap(ignored -> RxLocationServices.getFusedLocationProviderClient(MainActivity.this))
+                    .flatMap(settingsClient -> RxLocationServices.checkLocationSettings(settingsClient, new LocationSettingsRequest.Builder().addLocationRequest(locationRequest).build()))
+                    .flatMap(locationSettingsResponse -> {
+                        LocationSettingsStates states = locationSettingsResponse.getLocationSettingsStates();
+
+                        Timber.d("bleUsable = %b, gpsUsable = %b, networkLocationUsable = %b", states.isBleUsable(), states.isGpsUsable(), states.isNetworkLocationUsable());
+                        return RxLocationServices.getFusedLocationProviderClient(MainActivity.this);
+                    })
                     .flatMapObservable(fusedLocationProviderClient -> RxLocationServices.getLocations(fusedLocationProviderClient, locationRequest))
-                    .subscribeOn(Schedulers.newThread())
                     .subscribe(location -> {
                                 Timber.d("Received location from -> %s ", location);
-//                                binding.location.setText(location.toString());
+                                binding.location.setText(location.toString());
                             },
                             throwable -> {
                                 Timber.e(throwable, "Could not get location");
